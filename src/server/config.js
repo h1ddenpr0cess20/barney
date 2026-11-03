@@ -1,5 +1,5 @@
 export const KNOWN_VOICES = Object.freeze([
-  'stone', 'ripple', 'vesper', 'meridian', 'tempo', 'beacon', 'cinder',
+  'vesper', 'stone', 'ripple', 'meridian', 'tempo', 'beacon', 'cinder',
 ]);
 
 function flag(value, fallback) {

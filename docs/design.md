@@ -54,9 +54,8 @@ finger holes doing for a face. He is a rigid ball: he never squashes or
 stretches, and everything he does is a ball doing it.
 
 He lives on the engine's starter stage: the wooden board from
-`examples/starter` (a planked floor with a ramp and a platform, in the physics
-and on screen), the engine's `createStage` for renderer, light, shadow and
-camera, and the engine's `dive` mood — Sticky's, a dive bar — for the lamp
+`examples/starter`, laid flat (a planked floor, in the physics and on screen),
+the engine's `createStage` for renderer, light, shadow and camera, and the engine's `dive` mood — Sticky's, a dive bar — for the lamp
 light, the neon in what the resin reflects and the dark of the bar beyond. The
 camera follows him as it follows the marble. What is Barney's own is in
 `src/client/ball/`.
@@ -82,8 +81,8 @@ Transcript activity drives listening and speaking poses. Backend work drives
 thinking between transcript updates. The display timeout is a visual heuristic,
 not proof of audio playback completion.
 
-He is steered, not animated. A small controller picks a waypoint on the flat
-floor beside the ramp, pushes the engine's `stepBall` toward it and brakes as he
+He is steered, not animated. A small controller picks a waypoint on the
+floor, pushes the engine's `stepBall` toward it and brakes as he
 arrives; the picture is whatever the physics did. `rollSpin` and `turn` turn him
 as he goes, so he rolls the way a ball rolls, and once he stops he eases back
 round to face you.
@@ -109,7 +108,7 @@ src/
     tools.js            Which of the server's tools this browser switched off
     ball/               The ball and how it moves. Knows nothing about transports
       index.js            The controller, the physics steps and the per-frame loop
-      board.js            The starter's wooden board, in the physics and on screen
+      board.js            The starter's wooden board, laid flat, in the physics and on screen
       moods.js            Targets per conversational state
       motion.js           The spring and the chase every channel eases on
       model.js            The engine's bowling ball, in Barney's resin

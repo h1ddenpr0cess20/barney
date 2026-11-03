@@ -135,7 +135,7 @@ export function createBarney({ stage, board, random = Math.random, events = glob
     return pointerOffset({ ray: ray.ray, eye, toCamera, reach: REACH * R });
   }
 
-  /** Where to roll next: somewhere on the floor beside the ramp, not far from here. */
+  /** Where to roll next: somewhere on the floor, not far from here. */
   function chooseGoal() {
     const reach = 0.8 + 1.8 * m.roam;
     const a = random() * Math.PI * 2;

@@ -38,7 +38,7 @@ by default). Voice duration and backend tokens are billed separately.
 Click the mic, allow the browser's microphone prompt, and start talking.
 
 Three pickers sit under the composer: the GPT-Live model that does the talking,
-the voice it talks in (Stone by default), and the Responses model behind it that
+the voice it talks in (Vesper by default), and the Responses model behind it that
 reasons and looks things up. Changing any of them redials and keeps the
 conversation.
 

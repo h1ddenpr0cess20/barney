@@ -6,7 +6,7 @@ Both `npm run dev` and `npm start` read `.env`.
 |---|---|---|
 | `OPENAI_API_KEY` | — | Required. Stays in the Node process. |
 | `MEMORY` | `true` | The `remember` and `forget` tools, and the memory block in the prompt |
-| `OPENAI_VOICE` | `stone` | Initial voice: stone, ripple, vesper, meridian, tempo, beacon, cinder |
+| `OPENAI_VOICE` | `vesper` | Initial voice: vesper, stone, ripple, meridian, tempo, beacon, cinder |
 | `OPENAI_LIVE_MODEL` | `gpt-live-1` | Preselected GPT-Live model |
 | `OPENAI_BACKEND_MODEL` | `gpt-5.6-terra` | Preselected Responses backend for reasoning and tools |
 | `WEB_SEARCH` | `true` | Hosted web search; browsers may disable it |
@@ -15,7 +15,7 @@ Both `npm run dev` and `npm start` read `.env`.
 | `SSL_KEY`, `SSL_CERT` | — | Paths to a real certificate; `npm start` then serves HTTPS |
 
 The picker lists GPT-Live models accessible to your API key. Barney defaults to
-Stone. An authorized voice outside the list can be set with `OPENAI_VOICE`.
+Vesper. An authorized voice outside the list can be set with `OPENAI_VOICE`.
 
 The third picker is the other end of the call: the Responses model Barney
 delegates reasoning, lookups and tool calls to. It lists the text models your
