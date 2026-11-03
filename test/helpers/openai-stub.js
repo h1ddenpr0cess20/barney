@@ -45,6 +45,7 @@ export const DEFAULT_MODELS = [
   'gpt-live-1',
   'gpt-live-1-2026-09-11',
   'gpt-5.6-terra',
+  'gpt-6.1-terra',
   'gpt-5.6-terra-2026-08-20',
   'gpt-5.6-luna',
   'gpt-5.6-codex',

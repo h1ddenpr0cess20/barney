@@ -77,7 +77,7 @@ export function resumedBlock(resumed) {
 /** GPT-Live owns speech; the Responses backend owns functions and lookups. */
 export function sessionConfig(model, voice, {
   memories, memory = true, resumed, history,
-  backendModel = 'gpt-5.6-terra', webSearch = true,
+  backendModel = 'gpt-6.1-terra', webSearch = true,
 } = {}) {
   const input = (Array.isArray(history) ? history : [])
     .filter((m) => m && ['user', 'assistant'].includes(m.role) && typeof m.content === 'string')

@@ -30,7 +30,7 @@ cp .env.example .env      # add your OPENAI_API_KEY
 npm run dev               # → http://localhost:5173
 ```
 
-Requires API access to `gpt-live-1` and to the backend model (`gpt-5.6-terra`
+Requires API access to `gpt-live-1` and to the backend model (`gpt-6.1-terra`
 by default). Voice duration and backend tokens are billed separately.
 
 `npm install` fetches the engine from GitHub, so it needs `git`.
