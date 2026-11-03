@@ -13,6 +13,12 @@ He is the first voice agent built on
 the renderer, the light and the gaze are the engine's, and the voice is the
 same wiring [Marc](https://github.com/h1ddenpr0cess20/marc) uses.
 
+![Barney in a desktop browser](docs/screenshots/desktop.png)
+
+<p align="center">
+  <img src="docs/screenshots/mobile.png" alt="Barney on a phone" width="300">
+</p>
+
 ## Run
 
 ```sh
