@@ -1,6 +1,8 @@
 import { createAttention } from 'madness-engine/heroes/alan/attention';
 import { anglesOf, pointerOffset } from 'madness-engine/heroes/alan/gaze';
+import { createBall, placeBall, rollSpin, stepBall, turn } from 'madness-engine/physics';
 
+import { HOME, ROAM } from './board.js';
 import { createBarneyBall, BALL_RADIUS as R } from './model.js';
 import { ENERGY_GAIN, MOODS } from './moods.js';
 import { approach, spring } from './motion.js';
@@ -17,11 +19,20 @@ const STIFFNESS = Object.freeze({ saccade: 260, roll: 150, pan: 100, pursuit: 60
  */
 const TURN = 0.55;
 
-/** How far it rolls either side of centre while talking, in tiles. */
-const ROLL_REACH = 0.26;
-
-/** The springs are stepped at no less than this, so a stiff one stays stable on a slow frame. */
+/** The physics runs in fixed steps, whatever the frame rate. */
 const STEP = 1 / 120;
+
+/** The push he rolls with, how quickly he settles, and how hard the steering pulls and brakes. */
+const PUSH = 6;
+const DRAG = 1.1;
+const PULL = 2.2;
+const BRAKE = 1.6;
+
+/** How fast he turns back to face you once he stops, per second. */
+const SETTLE = 2.4;
+
+const IDENTITY = [0, 0, 0, 1];
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 function stepSpring(s, k, dt, to, damping = 1) {
   const c = 2 * Math.sqrt(k) * damping;
@@ -30,42 +41,41 @@ function stepSpring(s, k, dt, to, damping = 1) {
 }
 
 /**
- * Barney: a bowling ball that is a voice. Resting on the floor facing you, he
- * turns his holes toward the pointer — and round the room when nobody is
- * pointing — leans in while he listens, spins like a ball in the return while
- * he thinks, and rolls and squashes in time with whoever is making sound.
+ * Barney: a bowling ball that is a voice. He is a rigid ball on the engine's
+ * physics and he never changes shape: he rolls round the board when he talks,
+ * stops and turns his holes toward you while he listens, spins on the spot
+ * while he thinks, and hops a little on each burst of speech. When nobody is
+ * pointing he looks round the room, and now and then rolls his gaze or flips
+ * over — those gestures are the engine's `heroes/alan/attention`.
  *
- * Where he looks is the engine's (`heroes/alan/attention`); the rest is here.
+ * The ball is steered, not animated: a small controller pushes the engine's
+ * `stepBall` toward a waypoint and brakes on arrival, and the picture is
+ * whatever the physics did — `rollSpin` and `turn` turn him as he rolls, so he
+ * rolls the way a ball rolls. Once he stops he eases back round to face you.
+ *
  * The conversation drives him through `setState`, `setLevel` and `pulse`, and
  * the stage's loop through `update(dt)`.
  */
-export function createBarney({ stage, random = Math.random, events = globalThis }) {
+export function createBarney({ stage, board, random = Math.random, events = globalThis }) {
   const { GFX } = stage;
+  const { world } = board;
   const ball = createBarneyBall(GFX);
 
   const barney = new GFX.Group();
   barney.name = 'barney';
-  const tumble = new GFX.Group();
-  tumble.name = 'tumble';
-  const spinner = new GFX.Group();
-  spinner.name = 'spinner';
-  const gaze = new GFX.Group();
-  gaze.name = 'gaze';
-  gaze.rotation.order = 'YXZ';
-  const roller = new GFX.Group();
-  roller.name = 'roller';
   const body = new GFX.Group();
   body.name = 'body';
-
-  barney.add(tumble);
-  tumble.add(spinner);
-  spinner.add(gaze);
-  gaze.add(roller);
-  roller.add(body);
+  barney.add(body);
   body.add(ball.group);
   stage.scene.add(barney);
 
+  // The physics ball, resting on the board where he starts.
+  const phys = createBall({ r: R });
+  placeBall(phys, HOME.x, R + 0.02, HOME.z);
+  stage.target.set(phys.x, R, phys.z);
+
   const attention = createAttention({ random });
+  const between = (a, b) => a + (b - a) * random();
 
   let state = 'idle';
   let mood = MOODS.idle;
@@ -77,20 +87,22 @@ export function createBarney({ stage, random = Math.random, events = globalThis 
 
   const yaw = { p: 0, v: 0 };
   const pitch = { p: 0, v: 0 };
-  const sq = { p: 0, v: 0 };
-  const tz = { p: 0, v: 0 };
-  const tx = { p: 0, v: 0 };
-  const jolt = { p: 0, v: 0 };
 
   let t = 0;
-  let spinA = 0;
-  let spinV = 0;
-  let ang = 0;
-  let x = 0;
-  let dir = 1;
-  let rest = 0;
-  let fidgetT = 2.4;
+  let accumulator = 0;
   let lastMove = -Infinity;
+  let wait = between(2, 5);
+  let goal = null;
+
+  // How he is turned: the roll the physics gave him, then his gaze, then a flip.
+  const spin = [0, 0, 0];
+  const roll = [...IDENTITY];
+  let spinV = 0;
+  const rollQ = new GFX.Quaternion();
+  const gazeQ = new GFX.Quaternion();
+  const flipQ = new GFX.Quaternion();
+  const euler = new GFX.Euler(0, 0, 0, 'YXZ');
+  const identityQ = new GFX.Quaternion();
 
   /** The pointer, in client pixels. `moved` is picked up by the next frame. */
   const pointer = { x: 0, y: 0, moved: false, seen: false, inside: false };
@@ -112,8 +124,7 @@ export function createBarney({ stage, random = Math.random, events = globalThis 
   const ndc = new GFX.Vector2();
   const toCamera = new GFX.Vector3();
   const axis = new GFX.Vector3();
-  const side = new GFX.Vector3();
-  const up = new GFX.Vector3(0, 1, 0);
+  const eye = new GFX.Vector3();
 
   function pointerGaze() {
     if (!pointer.seen || !pointer.inside) return null;
@@ -121,7 +132,29 @@ export function createBarney({ stage, random = Math.random, events = globalThis 
     if (!rect || !rect.width || !rect.height) return null;
     ndc.set(((pointer.x - rect.left) / rect.width) * 2 - 1, -((pointer.y - rect.top) / rect.height) * 2 + 1);
     ray.setFromCamera(ndc, stage.camera);
-    return pointerOffset({ ray: ray.ray, eye: barney.position, toCamera, reach: REACH * R });
+    return pointerOffset({ ray: ray.ray, eye, toCamera, reach: REACH * R });
+  }
+
+  /** Where to roll next: somewhere on the floor beside the ramp, not far from here. */
+  function chooseGoal() {
+    const reach = 0.8 + 1.8 * m.roam;
+    const a = random() * Math.PI * 2;
+    goal = {
+      x: clamp(phys.x + Math.cos(a) * reach, ROAM.x[0], ROAM.x[1]),
+      z: clamp(phys.z + Math.sin(a) * reach, ROAM.z[0], ROAM.z[1]),
+    };
+  }
+
+  /** The controls for one physics step: toward the goal, braking as he nears it, or just braking. */
+  function steer() {
+    let ex, ez;
+    if (goal) {
+      ex = goal.x - phys.x;
+      ez = goal.z - phys.z;
+      if (Math.hypot(ex, ez) < 0.1 && Math.hypot(phys.vx, phys.vz) < 0.25) goal = null;
+    }
+    if (!goal) { ex = -phys.vx * 0.4; ez = -phys.vz * 0.4; }
+    return [clamp(PULL * ex - BRAKE * phys.vx, -1, 1), clamp(PULL * ez - BRAKE * phys.vz, -1, 1)];
   }
 
   function frame(dt) {
@@ -131,12 +164,45 @@ export function createBarney({ stage, random = Math.random, events = globalThis 
     energy = approach(energy, Math.min(1, sustain + impulse), 6, dt);
     for (const k in m) m[k] = approach(m[k], mood[k], 3.4, dt);
 
-    const jitter = m.jitter * (1 + energy * ENERGY_GAIN.jitter);
-    const squash = m.squash * (1 + energy * ENERGY_GAIN.squash);
-    const rockAmp = m.rock + energy * ENERGY_GAIN.rock;
+    // Whether to roll somewhere: often while talking, now and then when idle, never while listening.
+    if (m.roam > 0.05) {
+      wait -= dt;
+      if (wait <= 0) {
+        chooseGoal();
+        wait = between(1.4, 3) / Math.max(m.roam, 0.15);
+      }
+    } else {
+      goal = null;
+    }
+
+    // The physics, in fixed steps.
+    const top = 0.9 + 1.7 * (m.pace + energy * ENERGY_GAIN.pace);
+    accumulator = Math.min(accumulator + dt, STEP * 12);
+    while (accumulator >= STEP) {
+      accumulator -= STEP;
+      const [ax, az] = steer();
+      stepBall(phys, world, ax, az, STEP, { push: PUSH, topSpeed: top, drag: DRAG });
+    }
+    const speed = Math.hypot(phys.vx, phys.vz);
+    eye.set(phys.x, phys.y, phys.z);
+
+    // How he is turned as he rolls: what the physics gives, and a spin on the spot while he thinks.
+    const thinking = state === 'thinking';
+    if (thinking) spinV += (m.spin - spinV) * Math.min(1, dt * 3.2);
+    else spinV = approach(spinV, 0, 3.2, dt);
+    if (phys.grounded) rollSpin(phys, spin); else spin[0] = spin[1] = spin[2] = 0;
+    spin[1] += spinV;
+    turn(roll, spin, dt);
+
+    // At rest he turns back round to face you.
+    if (!thinking && speed < 0.2 && Math.abs(spinV) < 0.5) {
+      rollQ.set(roll[0], roll[1], roll[2], roll[3]).slerp(identityQ, 1 - Math.exp(-SETTLE * dt));
+      roll[0] = rollQ.x; roll[1] = rollQ.y; roll[2] = rollQ.z; roll[3] = rollQ.w;
+    }
+    rollQ.set(roll[0], roll[1], roll[2], roll[3]);
 
     // Where he is looking.
-    toCamera.copy(stage.camera.position).sub(barney.position).normalize();
+    toCamera.copy(stage.camera.position).sub(eye).normalize();
     const home = anglesOf(toCamera);
     if (pointer.moved) {
       pointer.moved = false;
@@ -154,120 +220,57 @@ export function createBarney({ stage, random = Math.random, events = globalThis 
     const regard = TURN * m.regard;
     stepSpring(yaw, k, dt, look.yaw * regard, 0.9);
     stepSpring(pitch, k, dt, look.pitch * regard, 0.9);
+    euler.set(-(home.pitch + pitch.p), home.yaw + yaw.p, 0);
+    gazeQ.setFromEuler(euler);
 
-    // A tumble hops him up and turns him over, drifting a little as he goes.
+    // A flip hops him up and turns him over, and he comes down where he was.
     let hop = 0;
-    let driftX = 0;
-    let driftZ = 0;
     if (look.gesture?.kind === 'tumble') {
       axis.set(look.gesture.axis.x, look.gesture.axis.y, look.gesture.axis.z);
-      tumble.quaternion.setFromAxisAngle(axis, look.gesture.angle);
+      flipQ.setFromAxisAngle(axis, look.gesture.angle);
       hop = Math.sin(Math.PI * look.gesture.progress) * 0.55 * R;
-      side.crossVectors(axis, up).normalize().multiplyScalar(0.25 * R * look.gesture.drift);
-      driftX = side.x;
-      driftZ = side.z;
     } else {
-      tumble.quaternion.set(0, 0, 0, 1);
+      flipQ.identity();
     }
 
-    // Thinking: round and round on the spot, and back to rest.
-    const spinning = state === 'thinking';
-    if (spinning) {
-      spinV += (m.spin - spinV) * Math.min(1, dt * 3.2) - spinV * 0.1 * dt;
-    } else {
-      spinV = approach(spinV, 0, 3.2, dt);
-      if (Math.abs(spinV) < 0.05) spinV = 0;
-      // Settle to the nearest face-on turn rather than stopping where it was.
-      spinA = approach(spinA, Math.round(spinA / (Math.PI * 2)) * Math.PI * 2, 2.4, dt);
-    }
-    spinA += spinV * dt;
-
-    // Speaking: a little roll one way, a rest, and back.
-    const rolling = m.roll > 0.02 && !spinning;
-    let lift = 0;
-    if (rolling) {
-      if (rest > 0) {
-        rest -= dt;
-      } else {
-        const speed = 0.9 * m.roll;
-        ang += dir * dt * speed * 3;
-        x += dir * dt * speed * R * 3;
-        lift = Math.abs(Math.sin(t * 7)) * 0.012;
-        if (Math.abs(x) > ROLL_REACH) {
-          dir *= -1;
-          rest = 0.5 + random() * 0.6;
-          sq.v += 1.2;
-        }
-      }
-    } else {
-      x = approach(x, 0, 1.8, dt);
-      ang = approach(ang, 0, 1.8, dt);
-      rest = 0;
-    }
-
-    if (m.fidget > 0.01) {
-      fidgetT -= dt * m.fidget;
-      if (fidgetT <= 0) {
-        const r = random();
-        if (r < 0.5) sq.v += 1.6;
-        else { tz.v += (random() - 0.5) * 3.2; tx.v += 1; }
-        fidgetT = 2.6 + random() * 4;
-      }
-    }
-
-    spring(sq, 175, 10.5, dt, squash);
-    const rock = Math.sin(t * m.rockSpeed * 2.0) * rockAmp;
-    spring(tz, 68, 6.2, dt, rolling && rest <= 0 ? dir * 0.06 : rock);
-    spring(tx, 68, 6.2, dt, m.lean * 0.14);
-    stepSpring(jolt, 160, dt, 0, 0.5);
-
-    const tremor = jitter * 0.01;
-    const breathe = Math.sin(t * 1.3) * 0.004;
-    const s = sq.p * 0.08 + breathe;
-    const squashY = 1 - s;
-
-    // Leaning in is also coming forward, toward the camera.
-    const lean = m.lean * 0.18 * R;
-    barney.position.set(
-      x + toCamera.x * lean + driftX + (random() - 0.5) * tremor,
-      R * squashY + lift + hop + jolt.p * R,
-      toCamera.z * lean + driftZ + (random() - 0.5) * tremor,
-    );
-    barney.rotation.set(tx.p, 0, tz.p);
-
-    spinner.rotation.y = spinA;
-    gaze.rotation.set(-(home.pitch + pitch.p), home.yaw + yaw.p, 0);
-    roller.rotation.z = -ang;
-    body.scale.set(1 + s * 0.5, squashY, 1 + s * 0.5);
+    // The ball is rigid: where the physics put it, turned, and nothing else.
+    barney.position.set(phys.x, phys.y + hop, phys.z);
+    body.quaternion.copy(flipQ).multiply(rollQ).multiply(gazeQ);
   }
 
-  /** The stage's loop calls this once a frame; the camera follows the ball's centre. */
+  /** The stage's loop calls this once a frame; the camera goes after the ball, as in the starter. */
   function update(dt) {
     frame(Math.min(dt, 0.05));
-    stage.target.set(0, R, 0);
+    stage.view.step(dt);
+    const follow = 1 - Math.exp(-5 * dt);
+    stage.target.x += (phys.x - stage.target.x) * follow;
+    stage.target.y += (R - stage.target.y) * follow;
+    stage.target.z += (phys.z - stage.target.z) * follow;
   }
 
   return {
     get state() { return state; },
     get ball() { return ball; },
+    /** Where the physics has him, for the page and for tests. */
+    get at() { return { x: phys.x, y: phys.y, z: phys.z, vx: phys.vx, vz: phys.vz }; },
 
     setState(next) {
       if (!Object.hasOwn(MOODS, next) || next === state) return;
       state = next;
       mood = MOODS[next];
       if (next === 'idle' || next === 'thinking') sustain = 0;
+      wait = Math.min(wait, 0.4);
     },
 
     setLevel(level) {
       sustain = Math.min(1, Math.max(0, level));
     },
 
+    /** A burst of sound: he hops, if he is the sort of mood that does. */
     pulse(weight = 0.3) {
       const w = Math.min(1, Math.max(0, weight));
       impulse = Math.min(1, impulse + w);
-      sq.v += w * 2.2;
-      jolt.v += w * 0.12;
-      tz.v += (random() - 0.5) * w * 2.2;
+      if (phys.grounded && m.hop > 0.3) phys.vy += w * 2.2 * m.hop;
     },
 
     /** Roll the gaze round, or flip over — the idle gestures, on demand. */

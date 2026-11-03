@@ -1,22 +1,19 @@
 /**
- * What each conversational state does to the body. The gaze itself — where the
- * ball turns to look — is the engine's `heroes/alan/attention`; these are the
- * rest.
+ * What each conversational state does to him. Where he looks is the engine's
+ * (`heroes/alan/attention`); these are the rest.
  *
- *   jitter   tremor while there is sound
- *   lean     how far it tips toward the viewer (negative: back)
- *   rock     the side-to-side rock, and its speed
- *   roll     rolling back and forth along the floor
- *   spin     spinning on the spot, like a ball in the return
- *   squash   how hard it squashes in time with a voice
- *   fidget   how often it fidgets by itself
- *   regard   how far it turns toward the pointer or around the room (0–1)
+ *   roam     how readily he rolls off somewhere, and how far (0 stays put)
+ *   pace     how fast he rolls
+ *   spin     spinning on the spot, in radians a second, like a ball in the return
+ *   regard   how far he turns to look at the pointer or round the room (0–1)
+ *   hop      how readily he bounces on a burst of sound
  */
 export const MOODS = {
-  idle:      { jitter: 0.04, lean:  0.00, rock: 0.04, rockSpeed: 1.0, roll: 0.00, spin: 0,  squash: 0.00, fidget: 0.35, regard: 1.00 },
-  listening: { jitter: 0.03, lean:  0.45, rock: 0.08, rockSpeed: 1.5, roll: 0.00, spin: 0,  squash: 0.12, fidget: 0.20, regard: 0.55 },
-  thinking:  { jitter: 0.04, lean:  0.00, rock: 0.02, rockSpeed: 1.2, roll: 0.00, spin: 14, squash: 0.00, fidget: 0.00, regard: 0.00 },
-  speaking:  { jitter: 0.12, lean:  0.15, rock: 0.04, rockSpeed: 1.6, roll: 0.30, spin: 0,  squash: 0.45, fidget: 0.10, regard: 0.60 },
+  idle:      { roam: 0.30, pace: 0.45, spin: 0,  regard: 1.00, hop: 0.0 },
+  listening: { roam: 0.00, pace: 0.45, spin: 0,  regard: 0.55, hop: 0.0 },
+  thinking:  { roam: 0.00, pace: 0.45, spin: 14, regard: 0.00, hop: 0.0 },
+  speaking:  { roam: 1.00, pace: 0.80, spin: 0,  regard: 0.60, hop: 1.0 },
 };
 
-export const ENERGY_GAIN = { squash: 2.0, jitter: 0.9, rock: 0.04 };
+/** How far a loud moment pushes past the mood. */
+export const ENERGY_GAIN = { pace: 0.5 };

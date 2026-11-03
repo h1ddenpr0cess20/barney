@@ -15,8 +15,8 @@ import { createToolsPanel } from './ui/tools.js';
 import { createHud } from './ui/hud.js';
 import { trackKeyboardInset } from './ui/viewport.js';
 
-const stage = await createBallStage(document.querySelector('#stage'));
-const barney = createBarney({ stage });
+const { stage, board } = await createBallStage(document.querySelector('#stage'));
+const barney = createBarney({ stage, board });
 stage.run((dt) => barney.update(dt));
 const memory = createMemory();
 const switches = createToolSwitches();

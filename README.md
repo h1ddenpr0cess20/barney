@@ -2,15 +2,16 @@
 
 A voice agent rendered as a bowling ball. Barney is a tiger-resin flame ball
 with three finger holes for a face, and he likes bowling, pool, darts, beer and
-sports of every kind. He turns to look at the pointer, leans in while he
-listens, spins on the spot while he thinks, and rolls and squashes in time with
-whoever is talking — all of it driven by a live OpenAI GPT-Live conversation,
+sports of every kind. He rolls round a wooden floor in a dive bar while he
+talks, stops and turns his holes toward you while he listens, spins on the spot
+while he thinks, and looks at the pointer when you move it — all of it driven by
+a live OpenAI GPT-Live conversation,
 with a Responses backend for reasoning and tools. He remembers what you tell him
 to, between calls.
 
 He is the first voice agent built on
 [madness-engine](https://github.com/h1ddenpr0cess20/madness-engine): the ball,
-the renderer, the light and the gaze are the engine's, and the voice is the
+the stage, the physics he rolls on and the gaze are the engine's, and the voice is the
 same wiring [Marc](https://github.com/h1ddenpr0cess20/marc) uses.
 
 ![Barney in a desktop browser](docs/screenshots/desktop.png)

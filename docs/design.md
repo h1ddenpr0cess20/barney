@@ -49,42 +49,50 @@ caption they belong to.
 ## The ball
 
 Barney is the engine's bowling ball (`madness-engine/props/bowling-ball`) in
-its tiger resin — a flame design in brown, orange and cream — resting on a
-floor that shows nothing but his shadow, seen face on, with the three finger
-holes doing for a face. The engine supplies the ball, the stage (renderer,
-light, reflections, shadow, camera) and the gaze; everything that makes him a
-voice agent is here, in `src/client/ball/`.
+its tiger resin — a flame design in brown, orange and cream — with the three
+finger holes doing for a face. He is a rigid ball: he never squashes or
+stretches, and everything he does is a ball doing it.
+
+He lives on the engine's starter stage: the wooden board from
+`examples/starter` (a planked floor with a ramp and a platform, in the physics
+and on screen), the engine's `createStage` for renderer, light, shadow and
+camera, and the engine's `dive` mood — Sticky's, a dive bar — for the lamp
+light, the neon in what the resin reflects and the dark of the bar beyond. The
+camera follows him as it follows the marble. What is Barney's own is in
+`src/client/ball/`.
 
 ## States
 
-`idle` · `listening` · `thinking` · `speaking` — each a set of targets for
-jitter, lean, rock, roll, spin, squash and how far he turns to look
-(`ball/moods.js`). Barney eases between them, so transitions read as the same
-ball changing mood rather than a cut.
+`idle` · `listening` · `thinking` · `speaking` — each a set of targets for how
+readily he rolls off somewhere, how fast, how fast he spins, how far he turns to
+look, and whether he hops (`ball/moods.js`). Barney eases between them, so
+transitions read as the same ball changing mood rather than a cut.
 
-- **idle** — looks round the room, and at the pointer when there is one, with a
-  fidget every few seconds. Now and then he rolls his gaze in a circle or hops
-  and flips over — those gestures are the engine's `heroes/alan/attention`.
-- **listening** — comes forward and tips toward you, holding your gaze.
+- **idle** — mostly still, looking round the room, and at the pointer when there
+  is one; now and then he rolls a little way. Every so often he rolls his gaze in
+  a circle or hops and flips over — those gestures are the engine's
+  `heroes/alan/attention`.
+- **listening** — stops where he is and holds your gaze.
 - **thinking** — spins on the spot like a ball in the return. It's the one pose
   the other three never take, which is what makes the state legible at a glance.
-  When he stops he settles face on.
-- **speaking** — rolls a short way and back, squashing on every syllable and
-  jolting on every turn change.
+- **speaking** — rolls from place to place over the floor, faster as the voice
+  gets louder, hopping a little on each burst of speech.
 
 Transcript activity drives listening and speaking poses. Backend work drives
 thinking between transcript updates. The display timeout is a visual heuristic,
 not proof of audio playback completion.
 
+He is steered, not animated. A small controller picks a waypoint on the flat
+floor beside the ramp, pushes the engine's `stepBall` toward it and brakes as he
+arrives; the picture is whatever the physics did. `rollSpin` and `turn` turn him
+as he goes, so he rolls the way a ball rolls, and once he stops he eases back
+round to face you.
+
 Where he looks comes from `heroes/alan/attention` and `heroes/alan/gaze`, the
 logic Alan's glass eye uses: the pointer's ray is turned into a yaw and a pitch
 from straight at the camera, and a spring chases it. A ball turns its face less
-far than an eye does, so the range is scaled down.
-
-Five nested groups keep the motions from fighting: the outer one carries the
-position, tilt and tremor, then the tumble (a flip in the air), the spin about
-world up, the gaze (yaw and pitch), and the roll, with the squash on the ball
-itself.
+far than an eye does, so the range is scaled down. His orientation is the three
+composed: a flip if he is in one, the roll the physics gave him, then the gaze.
 
 ## Layout
 
@@ -100,11 +108,12 @@ src/
     memory.js           What it remembers between calls, in localStorage
     tools.js            Which of the server's tools this browser switched off
     ball/               The ball and how it moves. Knows nothing about transports
-      index.js            The controller and the per-frame loop
+      index.js            The controller, the physics steps and the per-frame loop
+      board.js            The starter's wooden board, in the physics and on screen
       moods.js            Targets per conversational state
       motion.js           The spring and the chase every channel eases on
       model.js            The engine's bowling ball, in Barney's resin
-      stage.js            The engine's stage: face-on view, studio reflections, floor shadow
+      stage.js            The engine's stage, dressed as Sticky's, with the board laid in it
     session/            The call. Emits transport-agnostic events
       index.js            Lifecycle: mic, session, connect, meter, tear down
       webrtc.js           Peer connection, data channel, SDP handshake
@@ -178,8 +187,8 @@ barney.pulse(0.4)            // transient impulse 0..1, one per discrete event
 Both land on the same internal energy value. `setLevel` carries the voice — two
 `AnalyserNode`s, one on the mic and one on the model's track, read per frame and
 smoothed with a fast attack and a slow release. `pulse` is for the beats where a
-turn changes hands: it kicks the springs directly as well as the energy, so the
-squash punctuates instead of strobing.
+turn changes hands: it kicks the physics directly as well as the energy, so the
+hop punctuates instead of strobing.
 
 Swapping providers means writing a different `createVoiceSession()` with that
 surface. `main.js` and the ball don't change.

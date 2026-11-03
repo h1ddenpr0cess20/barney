@@ -149,7 +149,23 @@ html, body {
   outline-offset: 2px;
 }
 
-#options { display: contents; }
+/*
+ * The pickers get a row of their own under the input, at every width: sharing
+ * the row with them left the field a few words wide, even on a desktop.
+ */
+#composer { flex-wrap: wrap; }
+#options {
+  display: flex;
+  flex-wrap: wrap;
+  order: 2;
+  flex: 1 0 100%;
+  gap: 8px;
+}
+#model, #voice, #backend {
+  flex: 1 1 120px;
+  max-width: none;
+  min-width: 0;
+}
 #send { order: 1; }
 
 #prompt {
@@ -239,8 +255,6 @@ html, body {
 #model, #voice, #backend {
   appearance: none;
   cursor: pointer;
-  flex: none;
-  max-width: 168px;
   padding: 9px 26px 9px 12px;
   border-radius: 999px;
   background: rgba(255, 255, 255, .05) no-repeat right 11px center;
@@ -545,21 +559,7 @@ html, body {
   #menu { top: calc(env(safe-area-inset-top) + 4px); }
   #status { top: calc(env(safe-area-inset-top) + 54px); }
 
-  #composer { flex-wrap: wrap; }
-  #options {
-    display: flex;
-    flex-wrap: wrap;
-    order: 2;
-    flex: 1 0 100%;
-    gap: 8px;
-  }
-  /* Three pickers on one phone-width row are unreadable: they wrap instead. */
-  #model, #voice, #backend {
-    flex: 1 1 120px;
-    max-width: none;
-    min-width: 0;
-    padding: 11px 24px 11px 12px;
-  }
+  #model, #voice, #backend { padding: 11px 24px 11px 12px; }
   #history,
   #memory,
   #toolbox {
