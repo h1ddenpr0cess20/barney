@@ -11,7 +11,7 @@ import { approach, spring } from '../../src/client/ball/motion.js';
 const angle = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w)));
 const UPRIGHT = new GFX.Quaternion();
 
-const CHANNELS = ['roam', 'pace', 'spin', 'regard', 'hop'];
+const CHANNELS = ['roam', 'pace', 'spin', 'regard'];
 
 describe('MOODS', () => {
   it('covers the four conversational states', () => {
@@ -150,6 +150,40 @@ describe('createBarney', () => {
       turned = Math.max(turned, angle(body.quaternion, UPRIGHT));
     }
     assert.ok(turned > 0.5, `never turned (${turned})`);
+    barney.dispose();
+  });
+
+  it('rolls smoothly while he talks: no bouncing, no lurching, whatever the voice and the frame times do', async () => {
+    const { stage, barney } = await rig();
+    const root = stage.scene.getObjectByName('barney');
+    let n = 7;
+    const noise = () => ((n = (n * 1103515245 + 12345) % 2147483648) / 2147483648);
+    barney.setState('speaking');
+    // Settle into a roll first, so what is measured is the roll.
+    for (let i = 0; i < 90; i++) barney.update(1 / 60);
+    let last = root.position.clone();
+    let lastV = null;
+    let moving = 0;
+    let worst = 0;
+    for (let i = 0; i < 900; i++) {
+      // Frame times that wander, an erratic voice, and a burst nearly every frame.
+      const dt = 1 / 60 + (noise() - 0.5) * 0.008;
+      barney.setLevel(noise());
+      barney.pulse(0.5 + noise() * 0.5);
+      barney.update(dt);
+      assert.ok(Math.abs(root.position.y - 0.52) < 0.02, `bounced to y=${root.position.y}`);
+      const v = { x: (root.position.x - last.x) / dt, z: (root.position.z - last.z) / dt };
+      if (lastV) {
+        const jump = Math.hypot(v.x - lastV.x, v.z - lastV.z);
+        worst = Math.max(worst, jump);
+        if (Math.hypot(v.x, v.z) > 0.3) moving++;
+      }
+      last = root.position.clone();
+      lastV = v;
+    }
+    assert.ok(moving > 300, `only rolling for ${moving} frames`);
+    // A frame is a sixtieth of a second: a speed that changes by more than this between two of them is a jolt.
+    assert.ok(worst < 0.6, `speed jumped by ${worst} tiles/s between two frames`);
     barney.dispose();
   });
 

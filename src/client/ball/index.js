@@ -31,6 +31,9 @@ const BRAKE = 1.6;
 /** How fast he turns back to face you once he stops, per second. */
 const SETTLE = 2.4;
 
+/** How quickly the push eases toward what the steering asks for, per second. */
+const EASE = 9;
+
 const IDENTITY = [0, 0, 0, 1];
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -44,7 +47,7 @@ function stepSpring(s, k, dt, to, damping = 1) {
  * Barney: a bowling ball that is a voice. He is a rigid ball on the engine's
  * physics and he never changes shape: he rolls round the board when he talks,
  * stops and turns his holes toward you while he listens, spins on the spot
- * while he thinks, and hops a little on each burst of speech. When nobody is
+ * while he thinks. When nobody is
  * pointing he looks round the room, and now and then rolls his gaze or flips
  * over — those gestures are the engine's `heroes/alan/attention`.
  *
@@ -90,6 +93,10 @@ export function createBarney({ stage, board, random = Math.random, events = glob
 
   let t = 0;
   let accumulator = 0;
+  const before = { x: HOME.x, y: R, z: HOME.z };
+  const drawn = { x: HOME.x, y: R, z: HOME.z };
+  const push = [0, 0];
+  let loud = 0;
   let lastMove = -Infinity;
   let wait = between(2, 5);
   let goal = null;
@@ -151,7 +158,11 @@ export function createBarney({ stage, board, random = Math.random, events = glob
     if (goal) {
       ex = goal.x - phys.x;
       ez = goal.z - phys.z;
-      if (Math.hypot(ex, ez) < 0.1 && Math.hypot(phys.vx, phys.vz) < 0.25) goal = null;
+      if (Math.hypot(ex, ez) < 0.1 && Math.hypot(phys.vx, phys.vz) < 0.25) {
+        goal = null;
+        // Talking, he sets off again soon; idle, he stays a good while.
+        wait = between(0.3, 1) + (1 - clamp(m.roam, 0, 1)) * between(4, 9);
+      }
     }
     if (!goal) { ex = -phys.vx * 0.4; ez = -phys.vz * 0.4; }
     return [clamp(PULL * ex - BRAKE * phys.vx, -1, 1), clamp(PULL * ez - BRAKE * phys.vz, -1, 1)];
@@ -165,26 +176,37 @@ export function createBarney({ stage, board, random = Math.random, events = glob
     for (const k in m) m[k] = approach(m[k], mood[k], 3.4, dt);
 
     // Whether to roll somewhere: often while talking, now and then when idle, never while listening.
+    // The next place is only chosen once he has got to the last, so he never changes his mind mid-roll.
     if (m.roam > 0.05) {
-      wait -= dt;
-      if (wait <= 0) {
-        chooseGoal();
-        wait = between(1.4, 3) / Math.max(m.roam, 0.15);
+      if (!goal) {
+        wait -= dt;
+        if (wait <= 0) chooseGoal();
       }
     } else {
       goal = null;
     }
 
-    // The physics, in fixed steps.
-    const top = 0.9 + 1.7 * (m.pace + energy * ENERGY_GAIN.pace);
+    // The physics, in fixed steps. How loud he is, slowly, sets his pace: following every syllable made him lurch.
+    loud = approach(loud, energy, 0.8, dt);
+    const top = 0.9 + 1.7 * (m.pace + loud * ENERGY_GAIN.pace);
     accumulator = Math.min(accumulator + dt, STEP * 12);
     while (accumulator >= STEP) {
       accumulator -= STEP;
+      before.x = phys.x; before.y = phys.y; before.z = phys.z;
       const [ax, az] = steer();
-      stepBall(phys, world, ax, az, STEP, { push: PUSH, topSpeed: top, drag: DRAG });
+      // The push eases in and out rather than snapping on, so he sets off and stops smoothly.
+      push[0] = approach(push[0], ax, EASE, STEP);
+      push[1] = approach(push[1], az, EASE, STEP);
+      stepBall(phys, world, push[0], push[1], STEP, { push: PUSH, topSpeed: top, drag: DRAG });
     }
+    // The picture is between the last two steps, not on the latest: whole steps per frame vary, and drawn
+    // as they fall they would shake him.
+    const alpha = accumulator / STEP;
+    drawn.x = before.x + (phys.x - before.x) * alpha;
+    drawn.y = before.y + (phys.y - before.y) * alpha;
+    drawn.z = before.z + (phys.z - before.z) * alpha;
     const speed = Math.hypot(phys.vx, phys.vz);
-    eye.set(phys.x, phys.y, phys.z);
+    eye.set(drawn.x, drawn.y, drawn.z);
 
     // How he is turned as he rolls: what the physics gives, and a spin on the spot while he thinks.
     const thinking = state === 'thinking';
@@ -195,7 +217,7 @@ export function createBarney({ stage, board, random = Math.random, events = glob
     turn(roll, spin, dt);
 
     // At rest he turns back round to face you.
-    if (!thinking && speed < 0.2 && Math.abs(spinV) < 0.5) {
+    if (!thinking && state !== 'speaking' && !goal && speed < 0.2 && Math.abs(spinV) < 0.5) {
       rollQ.set(roll[0], roll[1], roll[2], roll[3]).slerp(identityQ, 1 - Math.exp(-SETTLE * dt));
       roll[0] = rollQ.x; roll[1] = rollQ.y; roll[2] = rollQ.z; roll[3] = rollQ.w;
     }
@@ -214,7 +236,9 @@ export function createBarney({ stage, board, random = Math.random, events = glob
       pointerAge: t - lastMove,
     });
     let k = STIFFNESS[look.speed] ?? STIFFNESS.pursuit;
-    if (look.speed === 'pursuit' && (Math.abs(look.yaw * TURN - yaw.p) > 0.2 || Math.abs(look.pitch * TURN - pitch.p) > 0.2)) {
+    // Talking and rolling, his eyes drift rather than jump: a snap of the gaze reads as a shake.
+    if (state === 'speaking' && look.speed === 'saccade') k = STIFFNESS.pan;
+    if (state !== 'speaking' && look.speed === 'pursuit' && (Math.abs(look.yaw * TURN - yaw.p) > 0.2 || Math.abs(look.pitch * TURN - pitch.p) > 0.2)) {
       k = STIFFNESS.saccade;
     }
     const regard = TURN * m.regard;
@@ -234,7 +258,7 @@ export function createBarney({ stage, board, random = Math.random, events = glob
     }
 
     // The ball is rigid: where the physics put it, turned, and nothing else.
-    barney.position.set(phys.x, phys.y + hop, phys.z);
+    barney.position.set(drawn.x, drawn.y + hop, drawn.z);
     body.quaternion.copy(flipQ).multiply(rollQ).multiply(gazeQ);
   }
 
@@ -243,9 +267,9 @@ export function createBarney({ stage, board, random = Math.random, events = glob
     frame(Math.min(dt, 0.05));
     stage.view.step(dt);
     const follow = 1 - Math.exp(-5 * dt);
-    stage.target.x += (phys.x - stage.target.x) * follow;
+    stage.target.x += (drawn.x - stage.target.x) * follow;
     stage.target.y += (R - stage.target.y) * follow;
-    stage.target.z += (phys.z - stage.target.z) * follow;
+    stage.target.z += (drawn.z - stage.target.z) * follow;
   }
 
   return {
@@ -266,11 +290,10 @@ export function createBarney({ stage, board, random = Math.random, events = glob
       sustain = Math.min(1, Math.max(0, level));
     },
 
-    /** A burst of sound: he hops, if he is the sort of mood that does. */
+    /** A burst of sound: it lifts his energy, and with it his pace. It does not knock him about. */
     pulse(weight = 0.3) {
       const w = Math.min(1, Math.max(0, weight));
       impulse = Math.min(1, impulse + w);
-      if (phys.grounded && m.hop > 0.3) phys.vy += w * 2.2 * m.hop;
     },
 
     /** Roll the gaze round, or flip over — the idle gestures, on demand. */

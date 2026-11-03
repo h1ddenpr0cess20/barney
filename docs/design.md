@@ -64,7 +64,7 @@ camera follows him as it follows the marble. What is Barney's own is in
 
 `idle` · `listening` · `thinking` · `speaking` — each a set of targets for how
 readily he rolls off somewhere, how fast, how fast he spins, how far he turns to
-look, and whether he hops (`ball/moods.js`). Barney eases between them, so
+look (`ball/moods.js`). Barney eases between them, so
 transitions read as the same ball changing mood rather than a cut.
 
 - **idle** — mostly still, looking round the room, and at the pointer when there
@@ -74,8 +74,9 @@ transitions read as the same ball changing mood rather than a cut.
 - **listening** — stops where he is and holds your gaze.
 - **thinking** — spins on the spot like a ball in the return. It's the one pose
   the other three never take, which is what makes the state legible at a glance.
-- **speaking** — rolls from place to place over the floor, faster as the voice
-  gets louder, hopping a little on each burst of speech.
+- **speaking** — rolls smoothly from place to place over the floor, a little
+  faster as the voice gets louder over a second or so (not syllable by syllable,
+  which made him lurch).
 
 Transcript activity drives listening and speaking poses. Backend work drives
 thinking between transcript updates. The display timeout is a visual heuristic,
@@ -186,8 +187,10 @@ barney.pulse(0.4)            // transient impulse 0..1, one per discrete event
 Both land on the same internal energy value. `setLevel` carries the voice — two
 `AnalyserNode`s, one on the mic and one on the model's track, read per frame and
 smoothed with a fast attack and a slow release. `pulse` is for the beats where a
-turn changes hands: it kicks the physics directly as well as the energy, so the
-hop punctuates instead of strobing.
+turn changes hands: it lifts the energy and nothing else. Marc's egg is kicked
+on every pulse and squashes with each syllable; a rolling ball that is knocked
+about on every syllable just looks like it is shaking, so Barney's pace follows
+the voice slowly and his body is never touched by it.
 
 Swapping providers means writing a different `createVoiceSession()` with that
 surface. `main.js` and the ball don't change.
