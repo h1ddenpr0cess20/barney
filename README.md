@@ -2,7 +2,7 @@
 
 A voice agent rendered as a bowling ball. Barney is a tiger-resin flame ball
 with three finger holes for a face, and he likes bowling, pool, darts, beer and
-sports of every kind. He rolls round a wooden floor in a dive bar while he
+sports of every kind. He rolls round a wooden floor while he
 talks, stops and turns his holes toward you while he listens, spins on the spot
 while he thinks, and looks at the pointer when you move it — all of it driven by
 a live OpenAI GPT-Live conversation,
